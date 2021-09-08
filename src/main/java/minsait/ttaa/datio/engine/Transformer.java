@@ -97,6 +97,37 @@ public class Transformer extends Writer {
     }
 
 
+    private Dataset<Row> columnSelectionFilter(Dataset<Row> df) {
+        return df.select(new Column[]{PlayerInput.shortName.column(), PlayerInput.longName.column(), PlayerInput.age.column(), PlayerInput.heightCm.column(), PlayerInput.weightKg.column(), PlayerInput.nationality.column(), PlayerInput.clubName.column(), PlayerInput.overall.column(), PlayerInput.potential.column(), PlayerInput.teamPosition.column()});
+    }
+
+    private Dataset<Row> ageRangeFunction(Dataset<Row> df) {
+        WindowSpec w = Window.partitionBy(new Column[]{PlayerInput.nationality.column()});
+        Column rule = functions.when(PlayerInput.age.column().$less(23), "A").when(PlayerInput.age.column().$less(27), "B").when(PlayerInput.age.column().$less(32), "C").otherwise("D");
+        df = df.withColumn(PlayerInput.ageRange.getName(), rule.over(w));
+        return df;
+    }
+
+    private Dataset<Row> rankNationalityFunction(Dataset<Row> df) {
+        WindowSpec w = Window.partitionBy(new Column[]{PlayerInput.nationality.column()}).orderBy(new Column[]{PlayerInput.overall.column().desc()});
+        df = df.sort(new Column[]{PlayerInput.nationality.column(), PlayerInput.teamPosition.column(), PlayerInput.overall.column().desc()}).withColumn(PlayerInput.rankByNationalityPosition.getName(), functions.row_number().over(w));
+        return df;
+    }
+
+    private Dataset<Row> potentialVsOverallFunction(Dataset<Row> df) {
+        WindowSpec w = Window.partitionBy(new Column[]{PlayerInput.nationality.column()});
+        Column rule = PlayerInput.potential.column().divide(PlayerInput.overall.column());
+        df = df.withColumn(PlayerInput.potentialVsOverall.getName(), rule.over(w));
+        return df;
+    }
+
+    private Dataset<Row> filterAgeRangeRankByNationality(Dataset<Row> df) {
+        WindowSpec w = Window.partitionBy(new Column[]{PlayerInput.nationality.column()});
+        df = df.filter(PlayerInput.rankByNationalityPosition.column().$less(3).and(PlayerInput.ageRange.column().equalTo("B").or(PlayerInput.ageRange.column().equalTo("C")).and(PlayerInput.potentialVsOverall.column().$greater(1.15D))).and(PlayerInput.ageRange.column().equalTo("A").and(PlayerInput.potentialVsOverall.column().$greater(1.25D))).and(PlayerInput.ageRange.column().equalTo("D").and(PlayerInput.rankByNationalityPosition.column().$less(5))).over(w));
+        return df;
+    }
+
+
 
 
 }
